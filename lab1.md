@@ -24,16 +24,22 @@ We will be using a few Docker commands in this lab. For full documentation on av
 
 ## Prerequisites
 
-Completed Lab 0: You must have docker installed, or be using http://play-with-docker.com.
+Completed Lab 0: You must have docker installed,
 
 
 # Step 1: Run your first container
 
-We are going to use the Docker CLI to run our first container. 
+We are going to use the Docker CLI to run our first container. You can use the [docker commandline reference](https://docs.docker.com/engine/reference/commandline/docker/), to review Docker commands.
 
 1. Open a terminal on your local computer
 
-2. Run `docker container run -t ubuntu top`
+2. Run the `docker ps -a` command to list all current containers. The `-a` flag shows not only the running containers, but all containers including exited containers. 
+```sh
+$ docker ps -a
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+```
+
+3. Run `docker container run -t ubuntu top`
 
 Use the `docker container run` command to run a container with the ubuntu image using the `top` command. The `-t` flags allocate a pseudo-TTY which we need for the `top` to work correctly.
 
@@ -50,7 +56,9 @@ Digest: sha256:f3a61450ae43896c4332bda5e78b453f4a93179045f20c8181043b26b5e79028
 Status: Downloaded newer image for ubuntu:latest
 ```
 
-The `docker run` command will result first in a `docker pull` to download the ubuntu image onto your host. Once it is downloaded, it will start the container. The output for the running container should look like this:
+The `docker container` command is used to manage containers. The `docker container run` command will run a command in a new container.
+
+The `docker container run` command will result first in a `docker pull` to download the ubuntu image onto your host if the image is not already found on your local repository. Once it is downloaded, it will start the container. The output for the running container should look like this:
 
 ```sh
 top - 20:32:46 up 3 days, 17:40,  0 users,  load average: 0.00, 0.01, 0.00
@@ -70,11 +78,68 @@ Containers use linux namespaces to provide isolation of system resources from ot
 
 Even though we are using the `ubuntu` image, it is important to note that our container does not have its own kernel. Its uses the kernel of the host and the `ubuntu` image is used only to provide the file system and tools available on an ubuntu system. 
 
-3. Inspect the container with `docker container exec`
+Note: after the above command finishes, the container is stopped and removed, and is no longer available. Run the `docker ps -a` or `docker container ls -a` command to see all containers,
 
-The `docker container exec` command is a way to "enter" a running container's namespaces with a new process.
+```sh
+$ docker ps -a
+```
 
-Open a new terminal. To open a new terminal connected to node1 using play-with-docker.com, click "Add New Instance" on the lefthand side, then ssh from node2 into node1 using the IP that is listed by 'node1  '. For example:
+4. Run `docker run ubuntu`,
+
+Go to the home page for the Ubuntu image on the Docker Hub registry at https://hub.docker.com/_/ubuntu and review the image information,
+
+Next try running the container with the following flags,
+```sh
+$ docker run -d --restart always --name ubuntu ubuntu
+```
+Using the docker commandline reference, you find that the `-d` or `--detach` flag runs the container as a process in the background. The `--restart always` flag sets the restart policy for the container in case it exits. The `--name` flag assigns a custom name to the running container. If you omit the `--name` name flag, docker will assign a generated name for you. 
+
+Now, if you list all containers,
+```sh
+$ docker ps -a
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS                        PORTS               NAMES
+52e2e0fe93c3        ubuntu              "/bin/bash"         22 seconds ago      Restarting (0) 1 second ago                       ubuntu
+```
+you will see something interesting: the `STATUS` of the container displays that it is `Restarting`, which means it has exited. This seems suspicious at first, but when you step over what exactly happened, it makes sense. Docker ran the container, and when it was finished running it, it did not find other commands and concluded that it was finished running the container. The container was exited, but then Docker found that on exit, there is a restart policy set to `always` and it restarted the container again. The container will actually continue to exit and restart, but this is obviously not what we want. We want our container to stay up and running. You can accomplish this by adding an `--init` or `-i` flag to the `docker run` command, which will `run an init inside the container that forwards signals and reaps processes`.
+
+```sh
+$ docker run -d --restart always -i --name ubuntu ubuntu
+docker: Error response from daemon: Conflict. The container name "/ubuntu" is already in use by container "52e2e0fe93c384ae38d9af4bb2783f3763cb7099568374957ec3e5fab0cdef9b". You have to remove (or rename) that container to be able to reuse that name.
+See 'docker run --help'.
+```
+
+You might get the above `Error response`, this is because you already have run the ubuntu container, verify the `ubuntu` container is already running,
+```sh
+$ docker ps -a
+```
+
+You need to stop and remove the conflicting container. You can do this by running the `docker stop` and `docker rm` commands,
+```sh
+$ docker stop ubuntu
+$ docker ps -a
+$ docker rm ubuntu
+$ docker ps -a
+```
+
+Now try running the the `docker run` command again,
+```sh
+$ docker run -d --restart always -i --name ubuntu ubuntu
+```
+
+Your container now is up and running without exiting. If you list all containers again,
+```sh
+$ docker ps -a
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+ef30604ee5f4        ubuntu              "/bin/bash"         7 seconds ago       Up 6 seconds                            ubuntu
+```
+You will see under the `STATUS` column that your container is now `Up`.
+
+
+5. Inspect the container with `docker container exec`
+
+The `docker container exec` or shorter `docker exec` command is a way to "enter" an existing running container's namespaces with a new process.
+
+When using play-with-docker.com, open a new terminal. To open a new terminal connected to node1, click "Add New Instance" on the lefthand side, then ssh from node2 into node1 using the IP that is listed by 'node1  '. For example:
 
 ```sh
 [node2] (local) root@192.168.0.17 ~
@@ -83,7 +148,8 @@ $ ssh 192.168.0.18
 $ 
 ```
 
-In the new terminal, use the `docker container ls` command to get the ID of the running container you just created.
+
+In the terminal, use the `docker container ls` command to get the `CONTAINER ID` of the running container you just created.
 
 ```sh
 $ docker container ls
@@ -92,8 +158,7 @@ b3ad2a23fab3        ubuntu                     "top"                    29 minut
 ```
 
 
-
-Then use that id to run `bash` inside that container using the `docker container exec` command. Since we are using bash and want to interact with this container from our terminal, use `-it` flags to run using interactive mode while allocating a psuedo-terminal.
+Then use that container id to run `bash` inside that container using the `docker container exec` command. Since we are using bash and want to interact with this container from our terminal, use `-it` flags to run using interactive mode while allocating a psuedo-terminal.
 
 ```sh
 $ docker container exec -it b3ad2a23fab3 bash 
@@ -106,17 +171,17 @@ Notice the change in the prefix of your terminal. e.g. `root@b3ad2a23fab3:/`. Th
 
 **Note**: This is not the same as ssh'ing into a separate host or a VM. We don't need an ssh server to connect with a bash process. Remember that containers use kernel-level features to achieve isolation and that containers run on top of the kernel. Our container is just a group of processes running in isolation on the same host, and we can use `docker container exec` to enter that isolation with the `bash` process. After running `docker container exec`, the group of processes running in isolation (i.e. our container) include `top` and `bash`.
 
-From the same termina, run `ps -ef` to inspect the running processes.
+From the same terminal, run `ps -ef` to inspect the running processes.
 ```sh
 root@b3ad2a23fab3:/# ps -ef
 UID        PID  PPID  C STIME TTY          TIME CMD
-root         1     0  0 20:34 ?        00:00:00 top
-root        17     0  0 21:06 ?        00:00:00 bash
-root        27    17  0 21:14 ?        00:00:00 ps -ef
+root         1     0  0 17:26 ?        00:00:00 /bin/bash
+root         9     0  0 17:35 pts/0    00:00:00 bash
+root        22     9  0 17:36 pts/0    00:00:00 ps -ef
 ```
-You should see only the `top` process, `bash` process and our `ps` process.
+You should see only `bash` process and our `ps` process.
 
-For comparison, exit the container, and run `ps -ef` or `top` on the host. These commands will work on linux or mac. For windows, you can inspect the running processes using `tasklist`.
+For comparison, exit the container, and run `ps -ef` on the host. These commands will work on linux or mac. For windows, you can inspect the running processes using `tasklist`.
 
 ```sh
 root@b3ad2a23fab3:/# exit
@@ -139,7 +204,6 @@ These namespaces together provide the isolation for containers that allow them t
 
 In additional to running linux containers on Windows using a linux subsystem, native Windows containers are now possible due the creation of container primitives on the Windows OS. Native Windows containers can be run on Windows 10 or Windows Server 2016 or newer. 
 
-4. Clean up the container running the `top` processes by typing: `<ctrl>-c.`
 
 # Step 2: Run Multiple Containers
 
@@ -153,7 +217,7 @@ In Step 2 of this lab, we will start a couple of containers using some verified 
 
 2. Run an Nginx server
 
-Let's run a container using the [official Nginx image](https://store.docker.com/images/nginx) from the Docker Store.
+Let's run a container using the [official Nginx image](https://store.docker.com/images/nginx) from the Docker Store. Use the `docker container run` command or the shorter `docker run`.
 
 ```sh
 $ docker container run --detach --publish 8080:80 --name nginx nginx
@@ -167,7 +231,7 @@ Status: Downloaded newer image for nginx:latest
 5e1bf0e6b926bd73a66f98b3cbe23d04189c16a43d55dd46b8486359f6fdf048
 ```
 
-We are using a couple of new flags here. The `--detach` flag will run this container in the background. The `publish` flag publishes port 80 in the container (the default port for nginx), via port 8080 on our host. Remember that the NET namespace gives processes of the container their own network stack. The `--publish` flag is a feature that allows us to expose networking through the container onto the host. 
+We are using a couple of new flags here. The `--detach` flag will run this container in the background. The `--publish` or `-p` flag publishes port 80 in the container (the default port for nginx), via port 8080 on our host. Remember that the NET namespace gives processes of the container their own network stack. The `--publish` flag is a feature that allows us to expose networking through the container onto the host. 
 
 How do you know port 80 is the default port for nginx? Because it is listed in the [documentation](https://store.docker.com/images/nginx) on the Docker Store. In general, the documentation for the verified images is very good, and you will want to refer to them when running containers using those images. 
 
@@ -177,6 +241,13 @@ Since this is the first time you are running the nginx container, it will pull d
 
 Nginx is a lightweight web server. You can access it on port 8080 on your localhost.
 
+```sh
+$ docker ps -a
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                  NAMES
+510c778ca4fb        nginx               "nginx -g 'daemon of…"   2 minutes ago       Up 2 minutes        0.0.0.0:8080->80/tcp   nginx
+ef30604ee5f4        ubuntu              "/bin/bash"              18 minutes ago      Up 18 minutes                              ubuntu
+```
+
 3. Access the nginx server on http://localhost:8080. If you are using play-with-docker, look for the `8080` link near the top of the page.
 
 ![](images/lab1_step2_nginx.png)
@@ -184,6 +255,7 @@ Nginx is a lightweight web server. You can access it on port 8080 on your localh
 4.  Run a mongo DB server
 
 Now, run a mongoDB server. We will use the [official mongoDB image](https://store.docker.com/images/mongo) from the Docker Store. Instead of using the `latest` tag (which is the default if no tag is specified), we will use a specific version of the mongo image: 3.4.
+
 ```sh
 $ docker container run --detach --publish 8081:27017 --name mongo mongo:3.4
 Unable to find image 'mongo:3.4' locally
@@ -245,16 +317,17 @@ Completing this lab results in a bunch of running containers on your host. Let's
 ```sh
 $ docker container ls
 CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                     NAMES
-d6777df89fea        nginx               "nginx -g 'daemon ..."   3 minutes ago       Up 3 minutes        0.0.0.0:8080->80/tcp      nginx
-ead80a0db505        mongo               "docker-entrypoint..."   3 minutes ago       Up 3 minutes        0.0.0.0:8081->27017/tcp   mongo
-af549dccd5cf        ubuntu              "top"                    8 minutes ago       Up 8 minutes                                  priceless_kepler
+7c16c698acee        mongo:3.4           "docker-entrypoint.s…"   25 seconds ago      Up 24 seconds       0.0.0.0:8081->27017/tcp   mongo
+510c778ca4fb        nginx               "nginx -g 'daemon of…"   5 minutes ago       Up 5 minutes        0.0.0.0:8080->80/tcp      nginx
+ef30604ee5f4        ubuntu              "/bin/bash"              20 minutes ago      Up 20 minutes                                 ubuntu
 ```
-2. Next,  run `docker container stop [container id]` for each container in the list. You can also use the names of the containers that you specified before.
+
+2. Next,  run `docker container stop [container id]` or the shorter `docker stop [container id]` for each container in the list. You can also use the names of the containers that you specified before.
 ```sh
-$ docker container stop d67 ead af5
-d67
-ead
-af5
+$ docker container stop 7c1 510 ef3
+7c1
+510
+ef3
 ```
 
 **Note**: You only have to reference enough digits of the ID to be unique. Three digits is almost always enough.
@@ -273,11 +346,11 @@ WARNING! This will remove:
         - all dangling images
 Are you sure you want to continue? [y/N] y
 Deleted Containers:
-7872fd96ea4695795c41150a06067d605f69702dbcb9ce49492c9029f0e1b44b
-60abd5ee65b1e2732ddc02b971a86e22de1c1c446dab165462a08b037ef7835c
-31617fdd8e5f584c51ce182757e24a1c9620257027665c20be75aa3ab6591740
+7c16c698aceedf7857f6eaae025c9f89355b387cc3338a22fbb99c4ba55ea543
+510c778ca4fb4af130a59c575b45e505cce6360ae63278e1d6b359b07a533e8e
+ef30604ee5f4d7d6e34d2b99736e53d6c9e1e53271da65cf8ef7c241d7e8cbe2
 
-Total reclaimed space: 12B
+Total reclaimed space: 94B
 ```
 
 # Summary
