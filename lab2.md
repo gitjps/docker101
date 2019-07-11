@@ -22,6 +22,14 @@ You must have docker installed, or be using https://www.katacoda.com/courses/doc
 
 1. Run the following command to create a file named `app.py` with a simple python program. (copy-paste the entire code block)
 
+Optionally create a temp directory,
+```sh
+$ mkdir temp
+$ cd temp
+```
+
+then,
+
 ```bash
 echo 'from flask import Flask
 
@@ -105,7 +113,7 @@ And there you have it: a very simple Dockerfile. A full list of commands you can
 
 2. Build the docker image. 
 
-Pass in `-t` to name your image `python-hello-world`.
+Pass in `--tag` or shorter `-t` flag to add a name and optional tag  in format `name:tag` to your image `python-hello-world`. If you omit a tag, docker will default to `latest`. The `.` in the end looks for the a file `Dockerfile` in the current directory.
 
 ```sh
 $ docker image build -t python-hello-world .
@@ -157,7 +165,7 @@ Successfully built f1b2781b3111
 Successfully tagged python-hello-world:latest
 ```
 
-Verify that your image shows up in your image list via `docker image ls`.
+Verify that your image shows up in your image list via `docker image ls`. The `docker image ls` command will list all images in your local repository.
 
 ```sh
 $ docker image ls
@@ -203,7 +211,7 @@ The Dockerfile is how you create reproducible builds for your application. A com
 
 # Step 4: Push to a central registry
 
-1. Navigate to https://hub.docker.com and create an account if you haven't already
+1. Navigate to https://hub.docker.com and create an account if you do not already have one.
 
 For this lab we will be using the docker hub as our central registry. Docker hub is a free service to store publicly available images, or you can pay to store private images. Go to the [DockerHub](https://hub.docker.com) website and create a free account.
 
